@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const STATUS_ENUM = ["Pending", "Processing", "Completed", "Failed"];
+
 const ProductSchema = new mongoose.Schema({
   serialNumber: { type: String, required: true },
   productName: { type: String, required: true },
@@ -9,7 +11,7 @@ const ProductSchema = new mongoose.Schema({
 
 const RequestSchema = new mongoose.Schema({
   requestId: { type: String, required: true, unique: true },
-  status: { type: String, default: "Pending" }, // "Pending", "Processing", "Completed", "Failed"
+  status: { type: String, enum: STATUS_ENUM, default: "Pending" }, // Enforcing enum
   webhookUrl: { type: String },
   notified: { type: Boolean, default: false }, // For webhook notification
   products: [ProductSchema],
