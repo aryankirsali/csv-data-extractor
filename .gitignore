@@ -4,11 +4,12 @@ node_modules/
 # Environment variables
 .env
 
-# Logs
+# Logs and temporary files
 logs/
 *.log
+*.tmp
 
-# Operating System files
+# OS generated files
 .DS_Store
 Thumbs.db
 
@@ -16,3 +17,6 @@ Thumbs.db
 dist/
 build/
 coverage/
+
+# Uploaded CSVs (if not needed in repo)
+uploads/

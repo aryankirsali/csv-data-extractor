@@ -1,43 +1,47 @@
-// Import core modules
+// server.js - Entry point for the Express app (Producer & Consumer)
+
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
+const dotenv = require("dotenv");
+const uploadRoutes = require("./routes/uploadRoutes");
+const statusRoutes = require("./routes/statusRoutes");
 
-// Load configuration variables (e.g., from config/config.js)
-const config = require("./config/config");
-const dbConfig = require("./config/dbConfig");
+// Load environment variables
+dotenv.config();
 
-// Create an Express application instance
+// Create an Express app instance (Producer)
 const app = express();
 
-// Setup middleware to parse incoming JSON and URL-encoded data
+// Middleware to parse JSON and URL-encoded bodies
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Connect to MongoDB using the URI from dbConfig
+// Connect to MongoDB using Mongoose
+const MONGODB_URI = process.env.MONGODB_URI;
 mongoose
-  .connect(dbConfig.mongoURI, {
+  .connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Import routes for handling API endpoints
-const uploadRoutes = require("./src/routes/uploadRoutes");
-const statusRoutes = require("./src/routes/statusRoutes");
+// Mount API routes (Producer endpoints)
+app.use("/upload", uploadRoutes);
+app.use("/status", statusRoutes);
 
-// Setup routes
-app.use("/upload", uploadRoutes); // Route for CSV uploads
-app.use("/status", statusRoutes); // Route for status queries
-
-// Define a basic route to verify server is running
+// Basic route to check server health
 app.get("/", (req, res) => {
-  res.send("Image Processing System is running");
+  res.send("CSV Data Extractor API is running");
 });
 
-// Set the server to listen on the defined PORT
+// Start the server on the specified PORT (Producer)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+
+  // Start the SQS consumer (Consumer)
+  // This will continuously poll the SQS queue for jobs
+  require("./consumers/sqsConsumer");
 });
