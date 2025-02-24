@@ -1,29 +1,30 @@
-// src/consumers/sqsConsumer.js - Consumer service for processing SQS messages
-
 const sqs = require("../aws/sqs");
-const ProcessingRequest = require("../models/ProcessingRequest");
+const Request = require("../models/Request");
 const imageProcessingService = require("../services/imageProcessingService");
 const axios = require("axios");
 
-/**
- * Process an individual SQS message.
- * @param {Object} message - The SQS message.
- */
 const processMessage = async (message) => {
-  const { requestId, products, webhookUrl } = JSON.parse(message.Body);
+  const { requestId, webhookUrl } = JSON.parse(message.Body);
   try {
-    // Update DB: mark the request as "Processing"
-    await ProcessingRequest.updateOne({ requestId }, { status: "Processing" });
+    // Retrieve the complete Request document from MongoDB using requestId
+    const requestDoc = await Request.findOne({ requestId });
+    if (!requestDoc) {
+      throw new Error(`Request not found for id: ${requestId}`);
+    }
 
-    // Process images: download, compress, and upload to S3
-    const updatedProducts = await imageProcessingService.processImages(
-      products
+    // Update the Request status to "Processing"
+    await Request.updateOne({ requestId }, { status: "Processing" });
+
+    // Process images using the products stored in the Request document
+    const processedProducts = await imageProcessingService.processImages(
+      requestDoc.products,
+      requestId
     );
 
-    // Update DB: save processed image URLs and mark as "Completed"
-    await ProcessingRequest.updateOne(
+    // Update the Request document with processed products and mark as "Completed"
+    await Request.updateOne(
       { requestId },
-      { products: updatedProducts, status: "Completed" }
+      { products: processedProducts, status: "Completed" }
     );
 
     // Trigger webhook callback if provided
@@ -32,9 +33,10 @@ const processMessage = async (message) => {
         await axios.post(webhookUrl, {
           requestId,
           status: "Completed",
-          products: updatedProducts,
+          data: processedProducts,
         });
         console.log(`Webhook callback sent for requestId: ${requestId}`);
+        await Request.updateOne({ requestId }, { notified: true });
       } catch (webhookError) {
         console.error(
           `Failed to send webhook for requestId: ${requestId}`,
@@ -48,18 +50,13 @@ const processMessage = async (message) => {
     console.log(`Processed and deleted message for requestId: ${requestId}`);
   } catch (error) {
     console.error(`Error processing request ${requestId}:`, error);
-    // Optionally update status as "Failed" and decide whether to leave or delete the message for retry.
-    await ProcessingRequest.updateOne({ requestId }, { status: "Failed" });
+    await Request.updateOne({ requestId }, { status: "Failed" });
     await sqs.deleteMessage(message.ReceiptHandle);
   }
 };
 
-/**
- * Continuously poll SQS for messages.
- */
 const pollSQS = async () => {
   try {
-    // Receive messages with long polling
     const data = await sqs.receiveMessages();
     if (data && data.Messages && data.Messages.length > 0) {
       for (const message of data.Messages) {
@@ -69,10 +66,12 @@ const pollSQS = async () => {
   } catch (error) {
     console.error("Error receiving messages from SQS:", error);
   } finally {
-    // Continue polling after a delay (e.g., 5 seconds)
     setTimeout(pollSQS, 5000);
   }
 };
 
-// Start polling for messages
-pollSQS();
+function start() {
+  pollSQS();
+}
+
+module.exports = { start };

@@ -1,39 +1,39 @@
-// src/services/imageProcessingService.js - Processes images: downloads, compresses, and uploads to S3
-
 const sharp = require("sharp");
 const s3Uploader = require("../utils/s3Uploader");
 const imageDownloader = require("../utils/imageDownloader");
 
-exports.processImages = async (products) => {
-  const updatedProducts = [];
-  // Loop through each product
+/**
+ * Process images for a given set of products.
+ * For each product, compress each input image and upload to S3 under key: requestId/serialNumber/uniqueFilename.jpg.
+ * If processing fails, "invalid url" is used.
+ * Returns an array of products with outputImageUrls populated.
+ */
+exports.processImages = async (products, requestId) => {
+  const processedProducts = [];
   for (const product of products) {
+    const { serialNumber, productName, inputImageUrls } = product;
     const outputImageUrls = [];
-    // Process each image URL for the product
-    for (const imageUrl of product.inputImageUrls) {
+    for (const url of inputImageUrls) {
       try {
-        // Download image as buffer
-        const imageBuffer = await imageDownloader.downloadImage(imageUrl);
-        // Compress image using sharp (50% quality for JPEG)
+        const imageBuffer = await imageDownloader.downloadImage(url);
         const compressedBuffer = await sharp(imageBuffer)
           .jpeg({ quality: 50 })
           .toBuffer();
-        // Generate a unique key for S3
-        const outputKey = `processed/${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(2, 15)}.jpg`;
-        // Upload the image to S3 and get the public URL
-        const outputUrl = await s3Uploader.uploadImage(
-          compressedBuffer,
-          outputKey
-        );
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const s3Key = `${requestId}/${serialNumber}/${uniqueSuffix}.jpg`;
+        const outputUrl = await s3Uploader.uploadImage(compressedBuffer, s3Key);
         outputImageUrls.push(outputUrl);
       } catch (error) {
-        console.error(`Error processing image ${imageUrl}:`, error);
-        outputImageUrls.push(null);
+        console.error(`Error processing image ${url}:`, error);
+        outputImageUrls.push("invalid url");
       }
     }
-    updatedProducts.push({ ...product, outputImageUrls });
+    processedProducts.push({
+      serialNumber,
+      productName,
+      inputImageUrls,
+      outputImageUrls,
+    });
   }
-  return updatedProducts;
+  return processedProducts;
 };

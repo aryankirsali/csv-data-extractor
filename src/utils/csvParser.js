@@ -1,5 +1,3 @@
-// src/utils/csvParser.js - Utility to parse CSV files using csv-parser
-
 const fs = require("fs");
 const csv = require("csv-parser");
 
@@ -10,6 +8,7 @@ exports.parseCSV = (filePath) => {
       .pipe(csv())
       .on("data", (data) => {
         // Map CSV columns to product object fields
+        // Expected CSV columns: "S. No.", "Product Name", "Input Image Urls"
         const product = {
           serialNumber: data["S. No."],
           productName: data["Product Name"],
