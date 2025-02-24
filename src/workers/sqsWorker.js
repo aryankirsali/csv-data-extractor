@@ -1,5 +1,4 @@
-// /workers/sqsWorker.js - Worker that polls SQS for image processing jobs
-
+//  Worker that polls SQS for image processing jobs
 const sqs = require("../aws/sqs");
 const ProcessingRequest = require("../models/ProcessingRequest");
 const imageProcessingService = require("../services/imageProcessingService");
